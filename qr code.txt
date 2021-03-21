@@ -1,0 +1,66 @@
+import rospy
+import math
+from pyzbar import pyzbar
+from cv_bridge import CvBridge
+from sensor_msgs.msg import Image
+
+import rospy
+from clover import srv
+from std_srvs.srv import Trigger
+
+rospy.init_node('flight')
+
+get_telemetry = rospy.ServiceProxy('get_telemetry', srv.GetTelemetry)
+navigate = rospy.ServiceProxy('navigate', srv.Navigate)
+land = rospy.Service('land', Trigger)
+
+bridge = CvBridge()
+
+def qr_check():
+	cv_image = bridge.imgmsg_to_cv2(rospy.wait_for_message('main_camera/image_raw', Image), 'bgr8')
+	barcodes = pyzbar.decode(cv_image)
+	for barcode in barcodes:
+		b_data = barcode.data.encode("utf-8")
+		b_type = barcode.type
+		(x, y, w, h) = barcode.rect
+		xc = x + w/2
+		yc = y + h/2
+		print("Found {} with data {} with center at x={}, y={}".format(b_type, b_data, xc, yc))
+	a, b, c, d, e, f, g, h, i, j = map(str, b_data.split())
+	x1 = float(c)
+	y1 = float(d)
+	x2 = float(e)
+	y2 = float(f)
+	x3 = float(g)
+	y3 = float(h)
+	x4 = float(i)
+	y4 = float(j)
+	print x1 , y1
+	return x1, y1, x2, y2, x3, y3, x4, y4
+def navigate_wait(x=0, y=0, z=0, yaw=float('nan'), speed=0.5, frame_id='', auto_arm=False, tolerance=0.2):
+	navigate(x=x, y=y, z=z, yaw=yaw, speed=speed, frame_id=frame_id, auto_arm=auto_arm)
+
+	while not rospy.is.shutdown():
+		telem = get_telemetry(frame_id='navegate_target')
+		if math.sqrt(telem.x ** 2 + telem.y ** 2 + telem.z **2) < tolerance:
+			break
+		rospy.cleep(0.2)
+
+navigate_wait(x=0, y=0, z=1.5, speed=0.5, frame_id='body', auto_arm=True)
+
+navigate_wait(x=0, y=0, z=1.5, speed=0.5, frame_id='aruco_map')
+
+navigate_wait(x=0, y=0, z=1.5, speed=0.5, frame_id='aruco_map')
+
+x1, y1, x2, y2, x3, y3, x4, y4 = qr_check()
+
+navigate_wait(x=0, y=0, z=1.5, speed=0.5, frame_id='aruco_map')
+navigate_wait(x=0, y=0, z=1.5, speed=0.5, frame_id='aruco_map')
+navigate_wait(x=0, y=0, z=1.5, speed=0.5, frame_id='aruco_map')
+navigate_wait(x=0, y=0, z=1.5, speed=0.5, frame_id='aruco_map')
+
+navigate_wait(x=0, y=0, z=1.5, speed=0.5, frame_id='aruco_map')
+
+rospy.sleep(5)
+
+land()
